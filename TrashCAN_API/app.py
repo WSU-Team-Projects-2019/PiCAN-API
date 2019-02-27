@@ -157,7 +157,7 @@ class Scale (Resource):
 
     def put(self):
         hx711.reset()  # Maybe not necessary
-        config.store_config('TARE',hx711.get_raw_data(NUM_MEASUREMENTS))
+        config.store_config('TARE',hx711.get_raw_data(conf['NUM_MEASUREMENTS']))
         return 'Success'
 
 class WeightList (Resource):
@@ -201,6 +201,7 @@ class Weight (Resource):
         conn = get_db()
         weight_id = uuid.uuid1()
         time = datetime.datetime.now()
+        weight = request.args.get('weight')
         conn.cursor().execute("INSERT INTO ([weight_id],[timestamp],[weight]) VALUES(?, ?, ?)",(weight_id,time,weight,))
         conn.commit()
         return weight_id
@@ -210,6 +211,26 @@ class Weight (Resource):
         result = conn.cursor().execute("DELETE FROM[Weight] WHERE weight_id = ?",(weight_id,))
         conn.commit()
         return result
+
+class ConfigList (Resource):
+    def get(self):
+        return json.dumps(conf)
+
+class Config (Resource):
+    def get(self, option_name):
+        return json.dumps(conf[option_name])
+
+    def put(self, option_name):
+        value = request.args.get('value')
+        config.store_config(option_name,value)
+
+    def post(self, option_name):
+        value = request.args.get('value')
+        config.store_config(option_name,value)
+
+    def delete(self, option_name):
+        config.delete_config(option_name)
+
 
 #Map resource
 api.add_resource(Index, '/')
@@ -222,6 +243,8 @@ api.add_resource(BarcodeList, '/api/barcode')
 api.add_resource(WeightList, '/api/weight')
 api.add_resource(Barcode, '/api/barcode/<barcode_id>')
 api.add_resource(Weight, '/api/weight/<weight_id>')
+api.add_resource(ConfigList, 'api/config')
+api.add_resource(Config, 'api/config/<option_name>')
 
 if __name__ == '__main__':
     app.run()
