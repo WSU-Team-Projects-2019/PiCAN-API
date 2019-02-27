@@ -2,41 +2,34 @@ import sqlite3
 import json
 import uuid
 import datetime
+import logging
 from flask import Flask, request, g
 from flask_restful import Resource, Api, reqparse
 from gpiozero import Button, OutputDevice
 from hx711 import HX711
+import config
 
 app = Flask(__name__)
 api = Api(app)
 
-#Set pins and other values
-LID_SWITCH_PIN = 23
-LID_OPEN_PIN = 9
-LID_CLOSE_PIN = 10
-LIGHT_PIN = 24
-FAN_PIN = 25
-LED_PIN = 8
-SCALE_DATA_PIN = 5
-SCALE_CLOCK_PIN = 6
-SCALE_GAIN = 64
-NUM_MEASUREMENTS = 5
+# Load config
+conf = config.get_config()
 
 # Setup scale amp
 hx711 = HX711(
-    dout_pin=SCALE_DATA_PIN,
-    pd_sck_pin=SCALE_CLOCK_PIN,
-    channel='A',
-    gain=SCALE_GAIN
+    dout_pin=conf['SCALE_DATA_PIN'],
+    pd_sck_pin=conf['SCALE_CLOCK_PIN'],
+    channel=conf['SCALE_CHANNEL'],
+    gain=conf['SCALE_GAIN']
 )
 
 #Create objects for physical objects
-lid_switch = Button(LID_SWITCH_PIN)
-lid_open_button = OutputDevice(LID_OPEN_PIN, active_high=False, initial_value=False)
-lid_close_button = OutputDevice(LID_CLOSE_PIN, active_high=False, initial_value=False)
-light = OutputDevice(LIGHT_PIN, active_high=False, initial_value=False)
-fan = OutputDevice(FAN_PIN, active_high=False, initial_value=False)
-led = OutputDevice(LED_PIN, active_high=False, initial_value=False)
+lid_switch = Button(conf['LID_SWITCH_PIN)'])
+lid_open_button = OutputDevice(conf['LID_OPEN_PIN'], active_high=False, initial_value=False)
+lid_close_button = OutputDevice(conf['LID_CLOSE_PIN'], active_high=False, initial_value=False)
+light = OutputDevice(conf['LIGHT_PIN'], active_high=False, initial_value=False)
+fan = OutputDevice(conf['FAN_PIN'], active_high=False, initial_value=False)
+led = OutputDevice(conf['LED_PIN'], active_high=False, initial_value=False)
 
 #Setup parser
 
@@ -77,13 +70,17 @@ class Lid(Resource):
 
         if action == 'off':
             lid_close_button.on()
+            logging.info('Lid closed')
         elif action == 'on':
             lid_open_button.on()
+            logging.info('Lid opened')
         elif action == 'toggle':
             if lid_switch.value:
                 lid_close_button.on()
+                logging.info('Lid closed')
             else:
-                lid_close_button.on()
+                lid_open_button.on()
+                logging.info('Lid opened')
         else:
             return 400
         return 'Success'
@@ -91,9 +88,9 @@ class Lid(Resource):
 class Light(Resource):
     def get(self):
         if light.value:
-            status = 'on'
-        else:
             status = 'off'
+        else:
+            status = 'on'
         return status
 
     def put(self):
@@ -112,9 +109,9 @@ class Light(Resource):
 class Fan(Resource):
     def get(self):
         if fan.value:
-            status = 'on'
-        else:
             status = 'off'
+        else:
+            status = 'on'
         return status
 
     def put(self):
@@ -154,19 +151,13 @@ class LightED(Resource):
 
 class Scale (Resource):
     def get(self):
-        conn = get_db()
-        conn.cursor().execute("SELECT [Value] FROM [System_Options] WHERE [Option_Name] = 'tare'")
-        tare = conn.cursor().fetchone()
         hx711.reset() #Maybe not necessary
-        results = hx711.get_raw_data(NUM_MEASUREMENTS)
-        return sum(results)/len(results) - tare
+        results = hx711.get_raw_data(conf['NUM_MEASUREMENTS'])
+        return sum(results)/len(results) - conf['TARE']
 
     def put(self):
-        conn = get_db()
         hx711.reset()  # Maybe not necessary
-        tare = hx711.get_raw_data(NUM_MEASUREMENTS)
-        conn.cursor().execute("UPDATE [System_Options] SET [Value] = ? WHERE [Option_Name] = 'tare'", (tare,))
-        conn.commit()
+        config.store_config('TARE',hx711.get_raw_data(NUM_MEASUREMENTS))
         return 'Success'
 
 class WeightList (Resource):
