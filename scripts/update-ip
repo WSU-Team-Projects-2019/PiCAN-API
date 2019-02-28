@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Make sure to add this file to /etc/network/if-up.d
+# And give it executable permissions: chmod +x /etc/network/if-up.d/update-ip
+
+# Print the raspberry pi IP address and send it up to the server
+IP=`ifconfig | grep -A1 "wlan0" | awk '$1=="inet"{print $2;exit}'`
+
+curl -d '{"ip":"'$IP'"}' -H "Content-Type: application/json" -X POST  http://3.95.208.70:5000/update-ip
