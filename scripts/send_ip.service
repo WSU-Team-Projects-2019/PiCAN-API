@@ -1,0 +1,12 @@
+[Unit]
+Description=Send own IP address to server when network is available.
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/full/path/to/sendIP.py -a=AWS_address -p=AWS_port
+StandardOutput=syslog
+StandardError=syslog
+
+[Install]
+WantedBy=multi-user.target
