@@ -15,9 +15,9 @@ def get_config(option_name = ''):
     config_items = []
     conn = get_db()
     if option_name == '':
-        result = conn.cursor().execute("SELECT * FROM [System_Options]")
+        result = conn.cursor().execute("SELECT * FROM System_Options")
     else:
-        result = conn.cursor().execute("SELECT TOP 1 FROM [System_Options] WHERE [option_name] = ?",(option_name,))
+        result = conn.cursor().execute("SELECT TOP 1 FROM System_Options WHERE option_name = ?",(option_name,))
 
     for row in result:
         config_items.append({'option_name' : row[0], 'value' : row[1]})
@@ -26,23 +26,23 @@ def get_config(option_name = ''):
 
 def get_last_change_id():
     conn = get_db()
-    result = conn.cursor().execute("SELECT MAX([change_id]) FROM [System_Option_Changes]")
+    result = conn.cursor().execute("SELECT CAST(MAX(change_id)) AS INT FROM System_Option_Changes")
     conn.close()
     return result
 
 def store_config(option_name, value):
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT TOP 1 FROM [System_Options] WHERE [option_name] = ?",(value,))
+    cur.execute("SELECT TOP 1 FROM System_Options WHERE option_name = ?",(value,))
     if cur.rowcount == 0:
-        conn.cursor().execute("INSERT INTO [System_Options] ([option_name], [value]) VALUES(?, ?)",(option_name, value,))
+        conn.cursor().execute("INSERT INTO System_Options (option_name, option_value) VALUES(?, ?)",(option_name.uppper(), value,))
     else:
-        conn.cursor().execute("UPDATE [System_Options] SET [Value] = ? WHERE [option_name] = ?", (option_name,value,))
+        conn.cursor().execute("UPDATE System_Options SET option_value = ? WHERE option_name = ?", (option_name.upper(),value,))
     conn.commit()
     conn.close()
 
 def delete_config(option_name):
     conn = get_db()
-    conn.cursor().execute("DELETE FROM [System_Options] WHERE [option_name] = ?",_(option_name,))
+    conn.cursor().execute("DELETE FROM System_Options WHERE option_name = ?",_(option_name,))
     conn.commit()
     conn.close()

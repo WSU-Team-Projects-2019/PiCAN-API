@@ -1,16 +1,18 @@
 import sqlite3
 import json
-import uuid
 import datetime
 import logging
+import requests
+from time import sleep
+from threading import Thread
+from flask_apscheduler import APScheduler
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from flask import Flask, request, g
-from flask_restful import Resource, Api, reqparse
+from flask_restful import Resource, Api
 from gpiozero import Button, OutputDevice
 from hx711 import HX711
 import config
-
-app = Flask(__name__)
-api = Api(app)
+import bc_scanner
 
 # Load config
 conf = config.get_config()
@@ -34,7 +36,11 @@ led = OutputDevice(conf['LED_PIN'], active_high=False, initial_value=False)
 #Setup parser
 
 #Setup database
-DATABASE = '/srv/trashcan/venv/database.db'
+DATABASE = '/srv/trashcan/venv/database/database.db'
+
+# Shared app context
+app = Flask(__name__)
+scheduler = APScheduler()
 
 def get_db():
     db = getattr(g, '_database', None)
@@ -47,6 +53,122 @@ def close_connection(exception):
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
+
+def start_api():
+    # Config API
+    my_api = Api(app)
+    my_api.add_resource(Index, '/')
+    my_api.add_resource(Api, '/api')
+    my_api.add_resource(Lid, '/api/lid')
+    my_api.add_resource(Scale, '/api/scale')
+    my_api.add_resource(Light, '/api/light')
+    my_api.add_resource(Fan, '/api/fan')
+    my_api.add_resource(BarcodeList, '/api/barcode')
+    my_api.add_resource(WeightList, '/api/weight')
+    my_api.add_resource(Barcode, '/api/barcode/<barcode_id>')
+    my_api.add_resource(Weight, '/api/weight/<weight_id>')
+    my_api.add_resource(ConfigList, 'api/config')
+    my_api.add_resource(ConfigItem, 'api/config/<option_name>')
+
+    # Config scheduler
+    app.config.from_object(Config())
+    scheduler.init_app(app)
+    scheduler.start()
+
+    app.run()
+
+# Watchdog to monitor db config table for changes
+def start_change_monitor():
+    change_id = config.get_last_change_id()
+    while True:
+        new_conf_id = config.get_last_change_id()
+        if new_conf_id > change_id:
+            config.get_config()
+            change_id = new_conf_id
+            # Restart scheduler with new values
+            scheduler.shutdown()
+            scheduler.start()
+        sleep(config['WATCHDOG_TIMER'])
+
+def start_barcode_scanner():
+    while True:
+        if lid_switch.is_active():
+            bc_scanner.read()
+        sleep(conf['BARCODE_SLEEP'])
+
+
+# Scheduler
+class Config:
+    JOBS = []
+    SCHEDULER_JOBSTORES = {
+        'default': SQLAlchemyJobStore(url='sqlite:////database/database.db')
+    }
+    SCHEDULER_EXECUTORS = {
+        'default': {'type': 'threadpool', 'max_workers': 10}
+    }
+    SCHEDULER_JOB_DEFAULTS = {
+        'coalesce': True,
+        'max_instances': 1
+    }
+    SCHEDULER_API_ENABLED = True
+
+    # Long cycle UVC
+    def job1(self):
+        if requests.get('http://127.0.0.1/api/light').text == 'on':
+            logging.warning("Light already on")
+            return
+        response = requests.put('http://127.0.0.1/api/light?action=on')
+        sleep(config['LONG_CYCLE_SLEEP'])
+        response = requests.put('http://127.0.0.1/api/light?action=off')
+
+    # Short cycle UVC
+    def job2(self):
+        if requests.get('http://127.0.0.1/api/light').text == 'on':
+            logging.warning("Light already on")
+            return
+        response = requests.put('http://127.0.0.1/api/light?action=on')
+        sleep(config['SHORT_CYCLE_SLEEP'])
+        response = requests.put('http://127.0.0.1/api/light?action=off')
+
+    # Long cycle fan
+    def job3(self):
+        if requests.get('http://127.0.0.1/api/fan').text == 'on':
+            logging.warning("Fan already on")
+            return
+        response = requests.put('http://127.0.0.1/api/fan?action=on')
+        sleep(config['LONG_CYCLE_SLEEP'])
+        response = requests.put('http://127.0.0.1/api/fan?action=off')
+
+    # Short cycle fan
+    def job4(self):
+        if requests.get('http://127.0.0.1/api/fan').text == 'on':
+            logging.warning("Fan already on")
+            return
+        response = requests.put('http://127.0.0.1/api/fan?action=on')
+        sleep(config['SHORT_CYCLE_SLEEP'])
+        response = requests.put('http://127.0.0.1/api/fan?action=off')
+
+    # Long cycle both
+    def job5(self):
+        if requests.get('http://127.0.0.1/api/fan').text == 'on':
+            logging.warning("Fan already on")
+            return
+        if requests.get('http://127.0.0.1/api/light').text == 'on':
+            logging.warning("Light already on")
+            return
+        response = requests.put('http://127.0.0.1/api/fan?action=on')
+        response = requests.put('http://127.0.0.1/api/light?action=on')
+        sleep(config['LONG_CYCLE_SLEEP'])
+        response = requests.put('http://127.0.0.1/api/fan?action=off')
+        response = requests.put('http://127.0.0.1/api/light?action=off')
+
+    # Phone home to AWS server
+    def job6(self):
+        #TODO write this
+
+    # Broadcast location to wi-fi
+    def job7(self):
+        #TODO write this too
 
 class Index (Resource):
     def get(self):
@@ -181,11 +303,11 @@ class BarcodeList (Resource):
         return 501
 
 class Barcode (Resource):
-    def post(self,barcode):
+    def post(self,barcode_id):
         conn = get_db()
-        barcode_id = uuid.uuid1()
         time = datetime.datetime.now()
-        conn.cursor().execute("INSERT INTO ([barcode_id],[timestamp],[barcode]) VALUES(?, ?, ?)",(barcode_id,time,barcode,))
+        barcode = request.args.get('barcode')
+        conn.cursor().execute("INSERT INTO Barcode ([barcode_id],[timestamp],[barcode]) VALUES(?, ?, ?)",(barcode_id,time,barcode,))
         conn.commit()
         return barcode_id
 
@@ -197,12 +319,11 @@ class Barcode (Resource):
 
 
 class Weight (Resource):
-    def post(self):
+    def post(self,weight_id):
         conn = get_db()
-        weight_id = uuid.uuid1()
         time = datetime.datetime.now()
         weight = request.args.get('weight')
-        conn.cursor().execute("INSERT INTO ([weight_id],[timestamp],[weight]) VALUES(?, ?, ?)",(weight_id,time,weight,))
+        conn.cursor().execute("INSERT INTO Weight ([weight_id],[timestamp],[weight]) VALUES(?, ?, ?)",(weight_id,time,weight,))
         conn.commit()
         return weight_id
 
@@ -216,7 +337,7 @@ class ConfigList (Resource):
     def get(self):
         return json.dumps(conf)
 
-class Config (Resource):
+class ConfigItem (Resource):
     def get(self, option_name):
         return json.dumps(conf[option_name])
 
@@ -232,19 +353,13 @@ class Config (Resource):
         config.delete_config(option_name)
 
 
-#Map resource
-api.add_resource(Index, '/')
-api.add_resource(Api, '/api')
-api.add_resource(Lid, '/api/lid')
-api.add_resource(Scale, '/api/scale')
-api.add_resource(Light, '/api/light')
-api.add_resource(Fan, '/api/fan')
-api.add_resource(BarcodeList, '/api/barcode')
-api.add_resource(WeightList, '/api/weight')
-api.add_resource(Barcode, '/api/barcode/<barcode_id>')
-api.add_resource(Weight, '/api/weight/<weight_id>')
-api.add_resource(ConfigList, 'api/config')
-api.add_resource(Config, 'api/config/<option_name>')
 
 if __name__ == '__main__':
-    app.run()
+    t1 = Thread(target = start_api())
+    t2 = Thread(target = start_change_monitor())
+    t3 = Thread(target = bc_scanner)
+
+    t1.start()
+    t2.start()
+
+
