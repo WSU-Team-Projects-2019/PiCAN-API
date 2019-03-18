@@ -58,7 +58,7 @@ def start_api():
     # Config API
     my_api = Api(app)
     my_api.add_resource(Index, '/')
-    my_api.add_resource(Api, '/api')
+    my_api.add_resource(ApiRoot, '/api')
     my_api.add_resource(Lid, '/api/lid')
     my_api.add_resource(Scale, '/api/scale')
     my_api.add_resource(Light, '/api/light')
@@ -95,7 +95,6 @@ def start_barcode_scanner():
         if lid_switch.is_active():
             bc_scanner.read()
         sleep(conf['BARCODE_SLEEP'])
-
 
 # Scheduler
 class Config:
@@ -168,6 +167,9 @@ class Config:
         responses.append(requests.put('http://127.0.0.1/api/light?action=on'))
         sleep(config['LONG_CYCLE_SLEEP'])
         responses.append(requests.put('http://127.0.0.1/api/light?action=off'))
+        for index, response in responses:
+            if response is not '200':
+                logging.warning("Error from API: %s", responses[index])
 
     # Short cycle UVC
     def job2(self):
@@ -178,7 +180,9 @@ class Config:
         responses.append(requests.put('http://127.0.0.1/api/light?action=on'))
         sleep(config['SHORT_CYCLE_SLEEP'])
         responses.append(requests.put('http://127.0.0.1/api/light?action=off'))
-
+        for index, response in responses:
+            if response is not '200':
+                logging.warning("Error from API: %s", responses[index])
 
     # Long cycle fan
     def job3(self):
@@ -189,6 +193,9 @@ class Config:
         responses.append(requests.put('http://127.0.0.1/api/fan?action=on'))
         sleep(config['LONG_CYCLE_SLEEP'])
         responses.append(requests.put('http://127.0.0.1/api/fan?action=off'))
+        for index, response in responses:
+            if response is not '200':
+                logging.warning("Error from API: %s", responses[index])
 
     # Short cycle fan
     def job4(self):
@@ -199,6 +206,9 @@ class Config:
         responses.append(requests.put('http://127.0.0.1/api/fan?action=on'))
         sleep(config['SHORT_CYCLE_SLEEP'])
         responses.append(requests.put('http://127.0.0.1/api/fan?action=off'))
+        for index, response in responses:
+            if response is not '200':
+                logging.warning("Error from API: %s", responses[index])
 
     # Long cycle both
     def job5(self):
@@ -214,6 +224,9 @@ class Config:
         sleep(config['LONG_CYCLE_SLEEP'])
         responses.append(requests.put('http://127.0.0.1/api/fan?action=off'))
         responses.append(requests.put('http://127.0.0.1/api/light?action=off'))
+        for index, response in responses:
+            if response is not '200':
+                logging.warning("Error from API: %s", responses[index])
 
     # Short cycle both
     def job6(self):
@@ -229,6 +242,9 @@ class Config:
         sleep(config['SHORT_CYCLE_SLEEP'])
         responses.append(requests.put('http://127.0.0.1/api/fan?action=off'))
         responses.append(requests.put('http://127.0.0.1/api/light?action=off'))
+        for index, response in responses:
+            if response is not '200':
+                logging.warning("Error from API: %s", responses[index])
 
     # Phone home to AWS server
     def job7(self):
@@ -247,7 +263,7 @@ class Index (Resource):
         content = "<h1>This is an index page</h1>"
         return content
 
-class Api(Resource):
+class ApiRoot(Resource):
     def get(self):
         content = "<h1>This is an API page</h1>"
         return content
@@ -429,7 +445,7 @@ class ConfigItem (Resource):
 if __name__ == '__main__':
     t1 = Thread(target = start_api())
     t2 = Thread(target = start_change_monitor())
-    t3 = Thread(target = bc_scanner.run())
+    t3 = Thread(target = start_barcode_scanner())
 
     t1.start()
     t2.start()
