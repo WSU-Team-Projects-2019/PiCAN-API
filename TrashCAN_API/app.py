@@ -99,7 +99,54 @@ def start_barcode_scanner():
 
 # Scheduler
 class Config:
-    JOBS = []
+    JOBS = [
+        {'id' : 'long_cycle_uvc',
+         'func' : 'app:job1',
+         'trigger' : 'cron',
+         'hour' : conf['long_cycle_uvc_minute'],
+         'minute' : conf['long_cycle_uvc_minute']
+        },
+        {'id': 'short_cycle_uvc',
+         'func': 'app:job2',
+         'trigger': 'cron',
+         'hour': conf['short_cycle_uvc_hour'],
+         'minute': conf['short_cycle_uvc_minute']
+        },
+        {'id': 'long_cycle_fan',
+         'func': 'app:job3',
+         'trigger': 'cron',
+         'hour': conf['long_cycle_fan_hour'],
+         'minute': conf['long_cycle_fan_minute']
+        },
+        {'id': 'short_cycle_fan',
+         'func': 'app:job4',
+         'trigger': 'cron',
+         'hour': conf['short_cycle_fan_hour'],
+         'minute': conf['short_cycle_fan_minute',]
+        },
+        {'id': 'long_cycle_both',
+         'func': 'app:job5',
+         'trigger': 'cron',
+         'hour': conf['long_cycle_both_hour'],
+         'minute': conf['long_cycle_both_minute']
+        },
+        {'id': 'short_cycle_both',
+         'func': 'app:job6',
+         'trigger': 'cron',
+         'hour': conf['short_cycle_both_hour'],
+         'minute': conf['short_cycle_both_both',]
+        },
+        {'id' : 'phone_home',
+         'func' : 'app:job7',
+         'trigger' : 'interval',
+         'seconds' : conf['phone_home_sleep']
+        },
+        {'id' : 'broadcast_location',
+         'func' : 'app:job8',
+         'trigger' : 'interval',
+         'seconds' : conf['broadcast_sleep']
+        }
+    ]
     SCHEDULER_JOBSTORES = {
         'default': SQLAlchemyJobStore(url='sqlite:////database/database.db')
     }
@@ -117,36 +164,41 @@ class Config:
         if requests.get('http://127.0.0.1/api/light').text == 'on':
             logging.warning("Light already on")
             return
-        response = requests.put('http://127.0.0.1/api/light?action=on')
+        responses = list()
+        responses.append(requests.put('http://127.0.0.1/api/light?action=on'))
         sleep(config['LONG_CYCLE_SLEEP'])
-        response = requests.put('http://127.0.0.1/api/light?action=off')
+        responses.append(requests.put('http://127.0.0.1/api/light?action=off'))
 
     # Short cycle UVC
     def job2(self):
         if requests.get('http://127.0.0.1/api/light').text == 'on':
             logging.warning("Light already on")
             return
-        response = requests.put('http://127.0.0.1/api/light?action=on')
+        responses = list()
+        responses.append(requests.put('http://127.0.0.1/api/light?action=on'))
         sleep(config['SHORT_CYCLE_SLEEP'])
-        response = requests.put('http://127.0.0.1/api/light?action=off')
+        responses.append(requests.put('http://127.0.0.1/api/light?action=off'))
+
 
     # Long cycle fan
     def job3(self):
         if requests.get('http://127.0.0.1/api/fan').text == 'on':
             logging.warning("Fan already on")
             return
-        response = requests.put('http://127.0.0.1/api/fan?action=on')
+        responses = list()
+        responses.append(requests.put('http://127.0.0.1/api/fan?action=on'))
         sleep(config['LONG_CYCLE_SLEEP'])
-        response = requests.put('http://127.0.0.1/api/fan?action=off')
+        responses.append(requests.put('http://127.0.0.1/api/fan?action=off'))
 
     # Short cycle fan
     def job4(self):
         if requests.get('http://127.0.0.1/api/fan').text == 'on':
             logging.warning("Fan already on")
             return
-        response = requests.put('http://127.0.0.1/api/fan?action=on')
+        responses = list()
+        responses.append(requests.put('http://127.0.0.1/api/fan?action=on'))
         sleep(config['SHORT_CYCLE_SLEEP'])
-        response = requests.put('http://127.0.0.1/api/fan?action=off')
+        responses.append(requests.put('http://127.0.0.1/api/fan?action=off'))
 
     # Long cycle both
     def job5(self):
@@ -156,19 +208,39 @@ class Config:
         if requests.get('http://127.0.0.1/api/light').text == 'on':
             logging.warning("Light already on")
             return
-        response = requests.put('http://127.0.0.1/api/fan?action=on')
-        response = requests.put('http://127.0.0.1/api/light?action=on')
+        responses = list()
+        responses.append(requests.put('http://127.0.0.1/api/fan?action=on'))
+        responses.append(requests.put('http://127.0.0.1/api/light?action=on'))
         sleep(config['LONG_CYCLE_SLEEP'])
-        response = requests.put('http://127.0.0.1/api/fan?action=off')
-        response = requests.put('http://127.0.0.1/api/light?action=off')
+        responses.append(requests.put('http://127.0.0.1/api/fan?action=off'))
+        responses.append(requests.put('http://127.0.0.1/api/light?action=off'))
+
+    # Short cycle both
+    def job6(self):
+        if requests.get('http://127.0.0.1/api/fan').text == 'on':
+            logging.warning("Fan already on")
+            return
+        if requests.get('http://127.0.0.1/api/light').text == 'on':
+            logging.warning("Light already on")
+            return
+        responses = list()
+        responses.append(requests.put('http://127.0.0.1/api/fan?action=on'))
+        responses.append(requests.put('http://127.0.0.1/api/light?action=on'))
+        sleep(config['SHORT_CYCLE_SLEEP'])
+        responses.append(requests.put('http://127.0.0.1/api/fan?action=off'))
+        responses.append(requests.put('http://127.0.0.1/api/light?action=off'))
 
     # Phone home to AWS server
-    def job6(self):
+    def job7(self):
         #TODO write this
+        logging.debug('Phoned home to server')
+        return
 
     # Broadcast location to wi-fi
-    def job7(self):
+    def job8(self):
         #TODO write this too
+        logging.debug('Broadcast location')
+        return
 
 class Index (Resource):
     def get(self):
@@ -357,9 +429,9 @@ class ConfigItem (Resource):
 if __name__ == '__main__':
     t1 = Thread(target = start_api())
     t2 = Thread(target = start_change_monitor())
-    t3 = Thread(target = bc_scanner)
+    t3 = Thread(target = bc_scanner.run())
 
     t1.start()
     t2.start()
-
+    t3.start()
 
