@@ -29,6 +29,7 @@ END
 CREATE TABLE System_Option_Changes (
 	system_option_change_id integer PRIMARY KEY AUTOINCREMENT,
 	system_option_id integer,
+	timestamp datetime,
 	change_type varchar,
 	option_name varchar,
 	old_option_name varchar,
