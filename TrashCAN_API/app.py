@@ -79,18 +79,22 @@ def start_change_monitor():
     while True:
         new_conf_id = config.get_last_change_id()
         if new_conf_id > change_id:
-            config.get_config()
+            config.load_config()
             change_id = new_conf_id
             # Restart scheduler with new values
             scheduler.shutdown()
             scheduler.start()
         sleep(config['WATCHDOG_TIMER'])
 
-def start_barcode_scanner():
+# Pauses any jobs for lights and/or fan and starts up barcode scanner
+def start_lid_monitor():
     while True:
         if lid_switch.is_active():
+            scheduler.pause()
+            bc_scanner.start_scanner()
             bc_scanner.read()
-        sleep(config.conf['BARCODE_SLEEP'])
+        scheduler.resume()
+        #Might need a pause here
 
 def toggle_led(action):
     if config.conf['CLEANING_LED'] == 'true':
@@ -194,7 +198,7 @@ class Scale (Resource):
 
     def put(self):
         hx711.reset()  # Maybe not necessary
-        config.store_config('TARE',hx711.get_raw_data(config.conf['NUM_MEASUREMENTS']))
+        config.set_config('TARE', hx711.get_raw_data(config.conf['NUM_MEASUREMENTS']))
         return 'Success'
 
 class WeightList (Resource):
@@ -250,19 +254,19 @@ class Weight (Resource):
 
 class ConfigList (Resource):
     def get(self):
-        return json.dumps(config.conf)
+        return config.get_config()
 
 class ConfigItem (Resource):
     def get(self, option_name):
-        return json.dumps(config.conf[option_name])
+        return config.get_config(option_name)
 
     def put(self, option_name):
         value = request.args.get('value')
-        config.store_config(option_name,value)
+        config.set_config(option_name, value)
 
     def post(self, option_name):
         value = request.args.get('value')
-        config.store_config(option_name,value)
+        config.set_config(option_name, value)
 
     def delete(self, option_name):
         config.delete_config(option_name)
@@ -272,7 +276,7 @@ class ConfigItem (Resource):
 if __name__ == '__main__':
     t1 = Thread(target = start_api())
     t2 = Thread(target = start_change_monitor())
-    t3 = Thread(target = start_barcode_scanner())
+    t3 = Thread(target = start_lid_monitor())
 
     t1.start()
     t2.start()

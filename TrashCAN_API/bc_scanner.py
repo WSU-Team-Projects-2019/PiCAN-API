@@ -3,3 +3,7 @@
 def read():
     f = open('/dev/ttyACM0')
     return f.read(13)
+
+def start_scanner():
+    #Nothing here yet
+    return

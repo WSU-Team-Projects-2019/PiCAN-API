@@ -9,7 +9,8 @@ DATABASE = '/srv/trashcan/venv/database/database.db'
 conf = {}
 
 def __init__():
-    self.conf = get_config()
+    nonlocal conf
+    load_config()
 
 def get_db():
     db = getattr(g, '_database', None)
@@ -17,18 +18,21 @@ def get_db():
         db = g._database = sqlite3.connect(DATABASE)
     return db
 
-def get_config(option_name = ''):
-    config_items = []
+# Without an option_name, this reloads all options. With an option name this reload a specific option
+def load_config(option_name = ''):
+    nonlocal conf
     conn = get_db()
     if option_name == '':
+        conf.clear()
         result = conn.cursor().execute("SELECT * FROM System_Options")
     else:
+        conf.pop(option_name)
         result = conn.cursor().execute("SELECT TOP 1 FROM System_Options WHERE option_name = ?",(option_name,))
 
     for row in result:
-        config_items.append({'option_name' : row[0], 'value' : row[1]})
+        conf[row[0]] = row
     conn.close()
-    return config_items
+    return
 
 def get_last_change_id():
     conn = get_db()
@@ -36,10 +40,19 @@ def get_last_change_id():
     conn.close()
     return result
 
-def store_config(option_name, value):
+def get_config(option_name = ''):
+    conn = get_db()
+    if option_name == '':
+        result = conn.cursor().execute("SELECT * FROM System_Options")
+    else:
+        result = conn.cursor().execute("SELECT TOP 1 FROM System_Options WHERE option_name = ?", (option_name,))
+    conn.close()
+    return result
+
+def set_config(option_name, value):
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT TOP 1 FROM System_Options WHERE option_name = ?",(value,))
+    cur.execute("SELECT TOP 1 FROM System_Options WHERE option_name = ?",(option_name,))
     if cur.rowcount == 0:
         conn.cursor().execute("INSERT INTO System_Options (option_name, option_value) VALUES(?, ?)",(option_name.uppper(), value,))
     else:
