@@ -3,7 +3,13 @@ import sqlite3
 from flask import g
 
 #Setup database
-DATABASE = '/srv/trashcan/venv/database.db'
+DATABASE = '/srv/trashcan/venv/database/database.db'
+
+# Dict to hold configurations
+conf = {}
+
+def __init__():
+    self.conf = get_config()
 
 def get_db():
     db = getattr(g, '_database', None)

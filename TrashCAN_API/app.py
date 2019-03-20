@@ -2,36 +2,32 @@ import sqlite3
 import json
 import datetime
 import logging
-import requests
 from time import sleep
 from threading import Thread
 from flask_apscheduler import APScheduler
-from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from flask import Flask, request, g
 from flask_restful import Resource, Api
 from gpiozero import Button, OutputDevice
 from hx711 import HX711
 import config
 import bc_scanner
-
-# Load config
-conf = config.get_config()
+import sch
 
 # Setup scale amp
 hx711 = HX711(
-    dout_pin=conf['SCALE_DATA_PIN'],
-    pd_sck_pin=conf['SCALE_CLOCK_PIN'],
-    channel=conf['SCALE_CHANNEL'],
-    gain=conf['SCALE_GAIN']
+    dout_pin=config.conf['SCALE_DATA_PIN'],
+    pd_sck_pin=config.conf['SCALE_CLOCK_PIN'],
+    channel=config.conf['SCALE_CHANNEL'],
+    gain=config.conf['SCALE_GAIN']
 )
 
 #Create objects for physical objects
-lid_switch = Button(conf['LID_SWITCH_PIN)'])
-lid_open_button = OutputDevice(conf['LID_OPEN_PIN'], active_high=False, initial_value=False)
-lid_close_button = OutputDevice(conf['LID_CLOSE_PIN'], active_high=False, initial_value=False)
-light = OutputDevice(conf['LIGHT_PIN'], active_high=False, initial_value=False)
-fan = OutputDevice(conf['FAN_PIN'], active_high=False, initial_value=False)
-led = OutputDevice(conf['LED_PIN'], active_high=False, initial_value=False)
+lid_switch = Button(config.conf['LID_SWITCH_PIN)'])
+lid_open_button = OutputDevice(config.conf['LID_OPEN_PIN'], active_high=False, initial_value=False)
+lid_close_button = OutputDevice(config.conf['LID_CLOSE_PIN'], active_high=False, initial_value=False)
+light = OutputDevice(config.conf['LIGHT_PIN'], active_high=False, initial_value=False)
+fan = OutputDevice(config.conf['FAN_PIN'], active_high=False, initial_value=False)
+led = OutputDevice(config.conf['LED_PIN'], active_high=False, initial_value=False)
 
 #Setup parser
 
@@ -71,7 +67,7 @@ def start_api():
     my_api.add_resource(ConfigItem, 'api/config/<option_name>')
 
     # Config scheduler
-    app.config.from_object(Config())
+    app.config.from_object(sch.Config())
     scheduler.init_app(app)
     scheduler.start()
 
@@ -94,169 +90,7 @@ def start_barcode_scanner():
     while True:
         if lid_switch.is_active():
             bc_scanner.read()
-        sleep(conf['BARCODE_SLEEP'])
-
-# Scheduler
-class Config:
-    JOBS = [
-        {'id' : 'long_cycle_uvc',
-         'func' : 'app:job1',
-         'trigger' : 'cron',
-         'hour' : conf['long_cycle_uvc_minute'],
-         'minute' : conf['long_cycle_uvc_minute']
-        },
-        {'id': 'short_cycle_uvc',
-         'func': 'app:job2',
-         'trigger': 'cron',
-         'hour': conf['short_cycle_uvc_hour'],
-         'minute': conf['short_cycle_uvc_minute']
-        },
-        {'id': 'long_cycle_fan',
-         'func': 'app:job3',
-         'trigger': 'cron',
-         'hour': conf['long_cycle_fan_hour'],
-         'minute': conf['long_cycle_fan_minute']
-        },
-        {'id': 'short_cycle_fan',
-         'func': 'app:job4',
-         'trigger': 'cron',
-         'hour': conf['short_cycle_fan_hour'],
-         'minute': conf['short_cycle_fan_minute',]
-        },
-        {'id': 'long_cycle_both',
-         'func': 'app:job5',
-         'trigger': 'cron',
-         'hour': conf['long_cycle_both_hour'],
-         'minute': conf['long_cycle_both_minute']
-        },
-        {'id': 'short_cycle_both',
-         'func': 'app:job6',
-         'trigger': 'cron',
-         'hour': conf['short_cycle_both_hour'],
-         'minute': conf['short_cycle_both_both',]
-        },
-        {'id' : 'phone_home',
-         'func' : 'app:job7',
-         'trigger' : 'interval',
-         'seconds' : conf['phone_home_sleep']
-        },
-        {'id' : 'broadcast_location',
-         'func' : 'app:job8',
-         'trigger' : 'interval',
-         'seconds' : conf['broadcast_sleep']
-        }
-    ]
-    SCHEDULER_JOBSTORES = {
-        'default': SQLAlchemyJobStore(url='sqlite:////database/database.db')
-    }
-    SCHEDULER_EXECUTORS = {
-        'default': {'type': 'threadpool', 'max_workers': 10}
-    }
-    SCHEDULER_JOB_DEFAULTS = {
-        'coalesce': True,
-        'max_instances': 1
-    }
-    SCHEDULER_API_ENABLED = True
-
-    # Long cycle UVC
-    def job1(self):
-        if requests.get('http://127.0.0.1/api/light').text == 'on':
-            logging.warning("Light already on")
-            return
-        responses = list()
-        responses.append(requests.put('http://127.0.0.1/api/light?action=on'))
-        sleep(config['LONG_CYCLE_SLEEP'])
-        responses.append(requests.put('http://127.0.0.1/api/light?action=off'))
-        for index, response in responses:
-            if response is not '200':
-                logging.warning("Error from API: %s", responses[index])
-
-    # Short cycle UVC
-    def job2(self):
-        if requests.get('http://127.0.0.1/api/light').text == 'on':
-            logging.warning("Light already on")
-            return
-        responses = list()
-        responses.append(requests.put('http://127.0.0.1/api/light?action=on'))
-        sleep(config['SHORT_CYCLE_SLEEP'])
-        responses.append(requests.put('http://127.0.0.1/api/light?action=off'))
-        for index, response in responses:
-            if response is not '200':
-                logging.warning("Error from API: %s", responses[index])
-
-    # Long cycle fan
-    def job3(self):
-        if requests.get('http://127.0.0.1/api/fan').text == 'on':
-            logging.warning("Fan already on")
-            return
-        responses = list()
-        responses.append(requests.put('http://127.0.0.1/api/fan?action=on'))
-        sleep(config['LONG_CYCLE_SLEEP'])
-        responses.append(requests.put('http://127.0.0.1/api/fan?action=off'))
-        for index, response in responses:
-            if response is not '200':
-                logging.warning("Error from API: %s", responses[index])
-
-    # Short cycle fan
-    def job4(self):
-        if requests.get('http://127.0.0.1/api/fan').text == 'on':
-            logging.warning("Fan already on")
-            return
-        responses = list()
-        responses.append(requests.put('http://127.0.0.1/api/fan?action=on'))
-        sleep(config['SHORT_CYCLE_SLEEP'])
-        responses.append(requests.put('http://127.0.0.1/api/fan?action=off'))
-        for index, response in responses:
-            if response is not '200':
-                logging.warning("Error from API: %s", responses[index])
-
-    # Long cycle both
-    def job5(self):
-        if requests.get('http://127.0.0.1/api/fan').text == 'on':
-            logging.warning("Fan already on")
-            return
-        if requests.get('http://127.0.0.1/api/light').text == 'on':
-            logging.warning("Light already on")
-            return
-        responses = list()
-        responses.append(requests.put('http://127.0.0.1/api/fan?action=on'))
-        responses.append(requests.put('http://127.0.0.1/api/light?action=on'))
-        sleep(config['LONG_CYCLE_SLEEP'])
-        responses.append(requests.put('http://127.0.0.1/api/fan?action=off'))
-        responses.append(requests.put('http://127.0.0.1/api/light?action=off'))
-        for index, response in responses:
-            if response is not '200':
-                logging.warning("Error from API: %s", responses[index])
-
-    # Short cycle both
-    def job6(self):
-        if requests.get('http://127.0.0.1/api/fan').text == 'on':
-            logging.warning("Fan already on")
-            return
-        if requests.get('http://127.0.0.1/api/light').text == 'on':
-            logging.warning("Light already on")
-            return
-        responses = list()
-        responses.append(requests.put('http://127.0.0.1/api/fan?action=on'))
-        responses.append(requests.put('http://127.0.0.1/api/light?action=on'))
-        sleep(config['SHORT_CYCLE_SLEEP'])
-        responses.append(requests.put('http://127.0.0.1/api/fan?action=off'))
-        responses.append(requests.put('http://127.0.0.1/api/light?action=off'))
-        for index, response in responses:
-            if response is not '200':
-                logging.warning("Error from API: %s", responses[index])
-
-    # Phone home to AWS server
-    def job7(self):
-        #TODO write this
-        logging.debug('Phoned home to server')
-        return
-
-    # Broadcast location to wi-fi
-    def job8(self):
-        #TODO write this too
-        logging.debug('Broadcast location')
-        return
+        sleep(config.conf['BARCODE_SLEEP'])
 
 class Index (Resource):
     def get(self):
@@ -362,12 +196,12 @@ class LightED(Resource):
 class Scale (Resource):
     def get(self):
         hx711.reset() #Maybe not necessary
-        results = hx711.get_raw_data(conf['NUM_MEASUREMENTS'])
-        return sum(results)/len(results) - conf['TARE']
+        results = hx711.get_raw_data(config.conf['NUM_MEASUREMENTS'])
+        return sum(results)/len(results) - config.conf['TARE']
 
     def put(self):
         hx711.reset()  # Maybe not necessary
-        config.store_config('TARE',hx711.get_raw_data(conf['NUM_MEASUREMENTS']))
+        config.store_config('TARE',hx711.get_raw_data(config.conf['NUM_MEASUREMENTS']))
         return 'Success'
 
 class WeightList (Resource):
@@ -427,7 +261,7 @@ class ConfigList (Resource):
 
 class ConfigItem (Resource):
     def get(self, option_name):
-        return json.dumps(conf[option_name])
+        return json.dumps(config.conf[option_name])
 
     def put(self, option_name):
         value = request.args.get('value')
