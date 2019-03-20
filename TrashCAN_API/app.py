@@ -92,6 +92,15 @@ def start_barcode_scanner():
             bc_scanner.read()
         sleep(config.conf['BARCODE_SLEEP'])
 
+def toggle_led(action):
+    if config.conf['CLEANING_LED'] == 'true':
+        if action == 'off':
+            led.off()
+        elif action == 'on':
+            led.on()
+        else:
+            led.toggle()
+
 class Index (Resource):
     def get(self):
         content = "<h1>This is an index page</h1>"
@@ -112,10 +121,10 @@ class Lid(Resource):
     def put(self):
         action = request.args.get('action')
 
-        if action == 'off':
+        if action == 'close':
             lid_close_button.on()
             logging.info('Lid closed')
-        elif action == 'on':
+        elif action == 'open':
             lid_open_button.on()
             logging.info('Lid opened')
         elif action == 'toggle':
@@ -142,10 +151,13 @@ class Light(Resource):
 
         if action == 'off':
             light.off()
+            toggle_led('off')
         elif action == 'on':
             light.on()
+            toggle_led('on')
         elif action == 'toggle':
             light.toggle()
+            toggle_led()
         else:
             return 400
         return 'Success'
@@ -163,32 +175,13 @@ class Fan(Resource):
 
         if action == 'off':
             fan.off()
+            toggle_led('off')
         elif action == 'on':
             fan.on()
+            toggle_led('on')
         elif action == 'toggle':
             fan.toggle()
-        else:
-            return 400
-        return 'Success'
-
-
-class LightED(Resource):
-    def get(self):
-            if led.value:
-                status = 'on'
-            else:
-                status = 'off'
-            return status
-
-    def put(self):
-        action = request.args.get('action')
-
-        if action == 'off':
-            led.off()
-        elif action == 'on':
-            led.on()
-        elif action == 'toggle':
-            led.toggle()
+            toggle_led()
         else:
             return 400
         return 'Success'
@@ -257,7 +250,7 @@ class Weight (Resource):
 
 class ConfigList (Resource):
     def get(self):
-        return json.dumps(conf)
+        return json.dumps(config.conf)
 
 class ConfigItem (Resource):
     def get(self, option_name):
