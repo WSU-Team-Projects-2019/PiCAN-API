@@ -89,11 +89,13 @@ def start_change_monitor():
 # Pauses any jobs for lights and/or fan and starts up barcode scanner
 def start_lid_monitor():
     while True:
+        #If lid is open pause job processing, start the scanner and read
         if lid_switch.is_active():
             scheduler.pause()
             bc_scanner.start_scanner()
-            bc_scanner.read()
-        scheduler.resume()
+            bc_scanner.upload(bc_scanner.read()) #Should block
+        elif scheduler.state == 2:
+            scheduler.resume()
         #Might need a pause here
 
 def toggle_led(action):
