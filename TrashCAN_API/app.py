@@ -2,6 +2,8 @@ import sqlite3
 import json
 import datetime
 import logging
+import requests
+import uuid
 from time import sleep
 from threading import Thread
 from flask_apscheduler import APScheduler
@@ -84,19 +86,32 @@ def start_change_monitor():
             # Restart scheduler with new values
             scheduler.shutdown()
             scheduler.start()
-        sleep(config['WATCHDOG_TIMER'])
+        sleep(config['WATCHDOG_SLEEP_TIMER'])
 
 # Pauses any jobs for lights and/or fan and starts up barcode scanner
 def start_lid_monitor():
+    state = False
     while True:
-        #If lid is open pause job processing, start the scanner and read
-        if lid_switch.is_active():
-            scheduler.pause()
-            bc_scanner.start_scanner()
-            bc_scanner.upload(bc_scanner.read()) #Should block
-        elif scheduler.state == 2:
+        #If lid is open, pause job processing, start the scanner and read
+        while lid_switch.is_active():
+            if not state:
+                state = True
+                bc_scanner.start_scanner()
+                scheduler.pause()
+            upc = bc_scanner.read()
+            #Uploads return from read if not empty
+            if upc != '':
+                bc_scanner.upload(upc)
+        if state:
+            state = False
+            bc_scanner.stop_scanner()
             scheduler.resume()
-        #Might need a pause here
+            r = requests.get('http://127.0.0.1/api/scale')
+            uuid.uuid1()
+            requests.post('http://127.0.0.1/api/weight/'+uuid.uuid1()+'?weight='+r.text)
+        #Maybe need pause here
+        #sleep(config.conf['LID_SLEEP_TIMER'])
+
 
 def toggle_led(action):
     if config.conf['CLEANING_LED'] == 'true':

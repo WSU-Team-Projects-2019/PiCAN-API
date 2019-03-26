@@ -169,7 +169,7 @@ class Config:
         server.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         #Set timeout for blocking socket
         server.settimeout(0.2)
-        server.bind("", 0) #0 binds to any avaiable port
+        server.bind("", 0) #0 binds to any available port
 
         server.sendto(msg, ('<broadcast>', config.conf['PI_BROADCAST_PORT']))
 

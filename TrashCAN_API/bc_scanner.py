@@ -3,8 +3,10 @@ import config
 import requests
 import uuid
 from gpiozero import OutputDevice
+import select
 
 bc_trigger = OutputDevice(config.conf['BC_TRIGGER_PIN'], active_high=False, initial_value=False)
+
 
 def read():
     hid = {4: 'a', 5: 'b', 6: 'c', 7: 'd', 8: 'e', 9: 'f', 10: 'g', 11: 'h', 12: 'i', 13: 'j', 14: 'k', 15: 'l',
@@ -23,36 +25,44 @@ def read():
     shift = False
     done = False
 
-    while not done:
-        buffer = fp.read(8)
-        for c in buffer:
-            if c > 0:
-                #40 is CR, means done
-                if int(c) == 40:
-                    done = True
-                    break;
-                if shift:
-                    #2 is shift key
-                    if int(c) == 2:
-                        shift = True
-                    #Use shift charset
+    #Wait for 1 second on any input from /dev file. Returns barcode or empty string
+    r, w, e = select.select([fp], [], [], 1)
+    if fp in r:
+        while not done:
+            buffer = fp.read(8)
+            for c in buffer:
+                if c > 0:
+                    #40 is CR, means done
+                    if int(c) == 40:
+                        done = True
+                        break;
+                    if shift:
+                        #2 is shift key
+                        if int(c) == 2:
+                            shift = True
+                        #Use shift charset
+                        else:
+                            bc += hid2[int(c)]
+                            shift = False
                     else:
-                        bc += hid2[int(c)]
-                        shift = False
-                else:
-                    if int(c) == 2:
-                        shift = True
-                    #Use non-shifted charset
-                    else:
-                        bc += hid[int(c)]
-    return bc
+                        if int(c) == 2:
+                            shift = True
+                        #Use non-shifted charset
+                        else:
+                            bc += hid[int(c)]
+        return bc
+    else:
+        return ''
 
 def start_scanner():
     bc_trigger.on()
 
+def stop_scanner():
+    bc_trigger.off()
+
 # Attempt to upload barcode directly to server, otherwise store locally
 def upload(bc):
     try:
-        requests.post(config.conf['HOME_SERVER_URL'], timeout=0.1)
+        requests.post(config.conf['HOME_SERVER_URL'+bc], timeout=0.2)
     except requests.exceptions as e:
         requests.post('http://127.0.0.1/api/barcode/'+uuid.uuid1()+'?barcode='+bc)
