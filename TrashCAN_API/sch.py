@@ -188,10 +188,10 @@ class Config:
                     logging.error(fails+' failed uploads. Aborting barcode upload')
                     break
         logging.debug('Phone home to server complete')
-        return
 
     # Broadcast location to wi-fi
     def job8(self):
+        logging.debug('WiFi broadcast started.')
         msg = socket.gethostbyname(socket.gethostname())
 
         server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -202,5 +202,4 @@ class Config:
 
         server.sendto(msg, ('<broadcast>', config.conf['PI_BROADCAST_PORT']))
 
-        logging.debug('Broadcast location')
-        return
+        logging.debug('WiFi broadcast location complete')

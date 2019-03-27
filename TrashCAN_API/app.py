@@ -96,6 +96,7 @@ def start_lid_monitor():
         while lid_switch.is_active():
             if not state:
                 state = True
+                requests.post(config.conf['HOME_SERVER_URL'] + '/lid?status=1', timeout=0.2)
                 bc_scanner.start_scanner()
                 scheduler.pause()
             upc = bc_scanner.read()
@@ -106,6 +107,7 @@ def start_lid_monitor():
         #If lid was just closed, resume processing jobs, stop scanner, and upload a scale reading
         if state:
             state = False
+            requests.post(config.conf['HOME_SERVER_URL'] + '/lid?status=0', timeout=0.2)
             bc_scanner.stop_scanner()
             scheduler.resume()
             r = requests.get('http://127.0.0.1/api/scale')
@@ -183,6 +185,7 @@ class Light(Resource):
             toggle_led()
         else:
             return 400
+        requests.post(config.conf['HOME_SERVER_URL'] + '/light?status=' + light.value, timeout=0.2)
         return 'Success'
 
 class Fan(Resource):
@@ -207,6 +210,7 @@ class Fan(Resource):
             toggle_led()
         else:
             return 400
+        requests.post(config.conf['HOME_SERVER_URL'] + '/fan?status=' + fan.value, timeout=0.2)
         return 'Success'
 
 class Scale (Resource):
