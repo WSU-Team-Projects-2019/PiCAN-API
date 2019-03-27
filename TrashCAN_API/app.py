@@ -100,8 +100,10 @@ def start_lid_monitor():
                 scheduler.pause()
             upc = bc_scanner.read()
             #Uploads return from read if not empty
-            if upc != '':
+            if not upc:
                 bc_scanner.upload(upc)
+            #Maybe add pause here
+        #If lid was just closed, resume processing jobs, stop scanner, and upload a scale reading
         if state:
             state = False
             bc_scanner.stop_scanner()
@@ -258,8 +260,10 @@ class Weight (Resource):
     def post(self,weight_id):
         conn = get_db()
         time = datetime.datetime.now()
-        weight = request.args.get('weight')
-        conn.cursor().execute("INSERT INTO Weight ([weight_id],[timestamp],[weight]) VALUES(?, ?, ?)",(weight_id,time,weight,))
+        weight_raw = request.args.get('weight')
+        weight = weight_raw * config.conf['CONVERSION_FACTOR']
+        conn.cursor().execute("INSERT INTO Weight ([weight_id],[timestamp],[weight],[weight_raw]) VALUES(?, ?, ?,?)",
+                              (weight_id,time,weight,weight_raw))
         conn.commit()
         return weight_id
 

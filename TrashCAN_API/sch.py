@@ -1,6 +1,7 @@
 import logging
 import requests
 import socket
+import json
 from time import sleep
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 import config
@@ -155,10 +156,38 @@ class Config:
             if response is not '200':
                 logging.warning("Error from API: %s", responses[index])
 
-    # Phone home to AWS server
+    # Phone home to AWS server. Attempt to upload any stored barcodes and weight measurements.
     def job7(self):
-        #TODO write this
-        logging.debug('Phoned home to server')
+        logging.debug('Phone home to server started')
+
+        r = requests.get('http://127.0.0.1/api/weight')
+        rjson = r.json()
+        for line in rjson.items():
+            fails = 0
+            try:
+                requests.post(config.conf['HOME_SERVER_URL']+'/anotherurl?weight='+line['weight'], timeout = 0.5)
+                requests.delete('http://127.0.0.1/api/weight/'+line['weight_id'])
+            except requests.exceptions as e:
+                fails += 1
+                logging.warning('Weight upload failed')
+                if fails >= 3:
+                    logging.error('Three failed uploads. Aborting weight upload')
+                    break
+
+        r = requests.get('http://127.0.0.1/api/barcode')
+        rjson = r.json()
+        for line in rjson.items():
+            fails = 0
+            try:
+                requests.post(config.conf['HOME_SERVER_URL']+'/barcode-lookup?upc='+line['barcode'], timeout=0.5)
+                requests.delete('http://127.0.0.1/api/weight/' + line['barcode_id'])
+            except requests.exceptions as e:
+                fails += 1
+                logging.warning('Barcode upload failed')
+                if fails >= config.conf['UPLOAD_FAILURE_LIMIT']:
+                    logging.error(fails+' failed uploads. Aborting barcode upload')
+                    break
+        logging.debug('Phone home to server complete')
         return
 
     # Broadcast location to wi-fi

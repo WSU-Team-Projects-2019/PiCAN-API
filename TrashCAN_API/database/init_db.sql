@@ -63,7 +63,7 @@ INSERT INTO System_Options (option_name, option_value) VALUES('NUM_MEASUREMENTS'
 INSERT INTO System_Options (option_name, option_value) VALUES('TARE','');
 INSERT INTO System_Options (option_name, option_value) VALUES('BC_TRIGGER_PIN','');
 INSERT INTO System_Options (option_name, option_value) VALUES('BARCODE_SCANNER_PATH','/dev/hidraw0');
-INSERT INTO System_Options (option_name, option_value) VALUES('HOME_SERVER_URL','http://3.95.208.70:5000/barcode-lookup?upc=');
+INSERT INTO System_Options (option_name, option_value) VALUES('HOME_SERVER_URL','http://3.95.208.70:5000');
 INSERT INTO System_Options (option_name, option_value) VALUES('LONG_CYCLE_UVC_HOUR','');
 INSERT INTO System_Options (option_name, option_value) VALUES('LONG_CYCLE_UVC_MINUTE','');
 INSERT INTO System_Options (option_name, option_value) VALUES('SHORT_CYCLE_UVC_HOUR','');
@@ -81,3 +81,5 @@ INSERT INTO System_Options (option_name, option_value) VALUES('BROADCAST_SLEEP',
 INSERT INTO System_Options (option_name, option_value) VALUES('LONG_CYCLE_SLEEP','600');
 INSERT INTO System_Options (option_name, option_value) VALUES('SHORT_CYCLE_SLEEP','180');
 INSERT INTO System_Options (option_name, option_value) VALUES('PI_BROADCAST_PORT','10001');
+INSERT INTO System_Options (option_name, option_value) VALUES('CONVERSION_FACTOR','');
+INSERT INTO System_Options (option_name, option_value) VALUES('UPLOAD_FAILURE_LIMIT','3');

@@ -63,6 +63,6 @@ def stop_scanner():
 # Attempt to upload barcode directly to server, otherwise store locally
 def upload(bc):
     try:
-        requests.post(config.conf['HOME_SERVER_URL'+bc], timeout=0.2)
+        requests.post(config.conf['HOME_SERVER_URL']+'/barcode-lookup?upc='+bc, timeout=0.2)
     except requests.exceptions as e:
         requests.post('http://127.0.0.1/api/barcode/'+uuid.uuid1()+'?barcode='+bc)
