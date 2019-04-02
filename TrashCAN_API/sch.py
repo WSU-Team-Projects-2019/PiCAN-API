@@ -185,7 +185,7 @@ class Config:
                 fails += 1
                 logging.warning('Barcode upload failed')
                 if fails >= config.conf['UPLOAD_FAILURE_LIMIT']:
-                    logging.error(fails+' failed uploads. Aborting barcode upload')
+                    logging.error(str(fails)+' failed uploads. Aborting barcode upload')
                     break
         logging.debug('Phone home to server complete')
 

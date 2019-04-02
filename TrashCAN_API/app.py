@@ -52,6 +52,18 @@ def close_connection(exception):
     if db is not None:
         db.close()
 
+def update_status():
+    payload = {
+        'lid' : lid_switch.value,
+        'light' : light.value,
+        'fan' : fan.value,
+        'led' : led.value
+    }
+    try:
+        requests.post(config.conf['HOME_SERVER_URL'] + '/update_status', params = payload,  timeout=0.2)
+    except requests.exceptions as e:
+        logging.warning('Update status failed')
+
 def start_api():
     # Config API
     my_api = Api(app)
@@ -93,28 +105,29 @@ def start_lid_monitor():
     state = False
     while True:
         #If lid is open, pause job processing, start the scanner and read
-        while lid_switch.is_active():
+        while lid_switch.value:
             if not state:
                 state = True
-                requests.post(config.conf['HOME_SERVER_URL'] + '/lid?status=1', timeout=0.2)
-                bc_scanner.start_scanner()
+                logging.debug('Lid open')
+                update_status()
                 scheduler.pause()
             upc = bc_scanner.read()
             #Uploads return from read if not empty
-            if not upc:
+            if upc:
                 bc_scanner.upload(upc)
-            #Maybe add pause here
+            sleep(0.1)
+
         #If lid was just closed, resume processing jobs, stop scanner, and upload a scale reading
         if state:
             state = False
-            requests.post(config.conf['HOME_SERVER_URL'] + '/lid?status=0', timeout=0.2)
-            bc_scanner.stop_scanner()
+            logging.debug('Lid closed')
+            update_status()
             scheduler.resume()
+            #Get weight from scale
             r = requests.get('http://127.0.0.1/api/scale')
             uuid.uuid1()
-            requests.post('http://127.0.0.1/api/weight/'+uuid.uuid1()+'?weight='+r.text)
-        #Maybe need pause here
-        #sleep(config.conf['LID_SLEEP_TIMER'])
+            requests.post('http://127.0.0.1/api/weight/'+str(uuid.uuid1())+'?weight_raw='+r.text)
+        sleep(0.1)
 
 
 def toggle_led(action):
@@ -125,6 +138,7 @@ def toggle_led(action):
             led.on()
         else:
             led.toggle()
+        update_status()
 
 class Index (Resource):
     def get(self):
@@ -161,6 +175,7 @@ class Lid(Resource):
                 logging.info('Lid opened')
         else:
             return 400
+        update_status()
         return 'Success'
 
 class Light(Resource):
@@ -185,7 +200,7 @@ class Light(Resource):
             toggle_led()
         else:
             return 400
-        requests.post(config.conf['HOME_SERVER_URL'] + '/light?status=' + light.value, timeout=0.2)
+        update_status()
         return 'Success'
 
 class Fan(Resource):
@@ -210,7 +225,7 @@ class Fan(Resource):
             toggle_led()
         else:
             return 400
-        requests.post(config.conf['HOME_SERVER_URL'] + '/fan?status=' + fan.value, timeout=0.2)
+        update_status()
         return 'Success'
 
 class Scale (Resource):
@@ -255,17 +270,24 @@ class Barcode (Resource):
 
     def delete(self, barcode_id):
         conn = get_db()
-        result = conn.cursor().execute("DELETE FROM[Barcode] WHERE barcode_id = ?",(barcode_id,))
+        result = conn.cursor().execute("DELETE FROM [Barcode] WHERE barcode_id = ?",(barcode_id,))
         conn.commit()
         return result
 
+    def get(self,barcode_id):
+        conn = get_db()
+        result = conn.cursor().execute("SELECT TOP 1 FROM [Barcode] WHERE barcode_id = ?", (barcode_id,))
+        return result
 
 class Weight (Resource):
     def post(self,weight_id):
         conn = get_db()
         time = datetime.datetime.now()
-        weight_raw = request.args.get('weight')
-        weight = weight_raw * config.conf['CONVERSION_FACTOR']
+        weight_raw = request.args.get('weight_raw')
+        if request.args.get('weight'):
+            weight = request.args.get('weight')
+        else:
+            weight = weight_raw * config.conf['CONVERSION_FACTOR']
         conn.cursor().execute("INSERT INTO Weight ([weight_id],[timestamp],[weight],[weight_raw]) VALUES(?, ?, ?,?)",
                               (weight_id,time,weight,weight_raw))
         conn.commit()
@@ -275,6 +297,11 @@ class Weight (Resource):
         conn = get_db()
         result = conn.cursor().execute("DELETE FROM[Weight] WHERE weight_id = ?",(weight_id,))
         conn.commit()
+        return result
+
+    def get(self,weight_id):
+        conn = get_db()
+        result = conn.cursor().execute("SELECT TOP 1 FROM [Barcode] WHERE weight_id = ?", (weight_id,))
         return result
 
 class ConfigList (Resource):
