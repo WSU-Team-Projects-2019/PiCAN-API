@@ -4,10 +4,11 @@ import datetime
 import logging
 import requests
 import uuid
+import RPi.GPIO as GPIO
 from time import sleep
 from threading import Thread
 from flask_apscheduler import APScheduler
-from flask import Flask, request, g
+from flask import Flask, request, g, Response
 from flask_restful import Resource, Api
 from gpiozero import Button, OutputDevice
 from hx711 import HX711
@@ -152,14 +153,9 @@ class ApiRoot(Resource):
 
 class Lid(Resource):
     def get(self):
-        if lid_switch.value:
-            status = 'open'
-        else:
-            status = 'closed'
-        return status
+        return lid_switch.value
     def put(self):
         action = request.args.get('action')
-
         if action == 'close':
             lid_close_button.on()
             logging.info('Lid closed')
@@ -174,17 +170,13 @@ class Lid(Resource):
                 lid_open_button.on()
                 logging.info('Lid opened')
         else:
-            return 400
+            return Response('Invalid action parameter',status=400)
         update_status()
         return 'Success'
 
 class Light(Resource):
     def get(self):
-        if light.value:
-            status = 'off'
-        else:
-            status = 'on'
-        return status
+        return light.value
 
     def put(self):
         action = request.args.get('action')
@@ -199,17 +191,13 @@ class Light(Resource):
             light.toggle()
             toggle_led()
         else:
-            return 400
+            return Response('Invalid action parameter',status=400)
         update_status()
         return 'Success'
 
 class Fan(Resource):
     def get(self):
-        if fan.value:
-            status = 'off'
-        else:
-            status = 'on'
-        return status
+        return fan.value
 
     def put(self):
         action = request.args.get('action')
@@ -230,9 +218,22 @@ class Fan(Resource):
 
 class Scale (Resource):
     def get(self):
+        GPIO.setwarnings(False)
+        offset = 30500
+        gain = 0.0095
         hx711.reset() #Maybe not necessary
-        results = hx711.get_raw_data(config.conf['NUM_MEASUREMENTS'])
-        return sum(results)/len(results) - config.conf['TARE']
+        raw_measures = hx711.get_raw_data(50)
+        #Apply offset
+        measures = [x + offset for x in raw_measures]
+        measures.sort()
+        #Calculate median
+        median = measures[int(round((len(measures) / 2)))]
+        #Remove values outside +/- 25% from the median
+        results = [x for x in measures if median * 0.75 <= x <= median * 1.25]
+        #0 scale should be ~1000 after applying offset. Remove this before applying gain.
+        x = (sum(results)/len(results))-1000
+        #Apply gain and remove tare value.
+        return (x*gain) - config.conf['TARE']
 
     def put(self):
         hx711.reset()  # Maybe not necessary
