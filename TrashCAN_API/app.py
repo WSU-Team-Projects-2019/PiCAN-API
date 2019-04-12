@@ -221,8 +221,9 @@ class Scale (Resource):
         GPIO.setwarnings(False)
         offset = 30500
         gain = 0.0095
+
         hx711.reset() #Maybe not necessary
-        raw_measures = hx711.get_raw_data(50)
+        raw_measures = hx711.get_raw_data(config.conf['NUM_MEASUREMENTS'])
         #Apply offset
         measures = [x + offset for x in raw_measures]
         measures.sort()
@@ -230,8 +231,8 @@ class Scale (Resource):
         median = measures[int(round((len(measures) / 2)))]
         #Remove values outside +/- 25% from the median
         results = [x for x in measures if median * 0.75 <= x <= median * 1.25]
-        #0 scale should be ~1000 after applying offset. Remove this before applying gain.
-        x = (sum(results)/len(results))-1000
+        #0 out and average values. Should be ~1000 after applying offset. Remove this before applying gain.
+        x = (sum(results)/len(results))- 1000
         #Apply gain and remove tare value.
         return (x*gain) - config.conf['TARE']
 
